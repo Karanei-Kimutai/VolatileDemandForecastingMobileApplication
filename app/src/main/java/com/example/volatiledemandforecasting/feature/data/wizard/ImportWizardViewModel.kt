@@ -27,6 +27,21 @@ import java.util.UUID
 /** The seven steps of spec §8.6, in order. */
 enum class WizardStep { ChooseFile, FileDetails, Mapping, Validation, Overlap, Confirm, Result }
 
+/**
+ * What the progress indicator shows. The overlap question only appears for some files, so it
+ * shares a stage with the check; otherwise the step count would jump around.
+ */
+enum class WizardStage { File, Columns, Check, Confirm }
+
+val WizardStep.stage: WizardStage?
+    get() = when (this) {
+        WizardStep.ChooseFile, WizardStep.FileDetails -> WizardStage.File
+        WizardStep.Mapping -> WizardStage.Columns
+        WizardStep.Validation, WizardStep.Overlap -> WizardStage.Check
+        WizardStep.Confirm -> WizardStage.Confirm
+        WizardStep.Result -> null
+    }
+
 class PickedFile(val name: String, val sizeBytes: Long, val bytes: ByteArray) {
     /** The first lines as text, for the details step. Display only: the backend does the real parsing. */
     val previewLines: List<String> by lazy { bytes.decodeToString(endIndex = minOf(bytes.size, 4096)).lineSequence().take(6).toList() }
@@ -77,6 +92,43 @@ class ImportWizardViewModel(
     }
 
     fun onFileUnreadable(message: UiText) = _state.update { it.copy(error = message) }
+
+    /**
+     * Picks up an upload that was left half-way, from the Sales tab. Its file is already on the
+     * server, so it opens at column matching, or at the check if it was already validated.
+     */
+    fun resume(importId: String) {
+        if (_state.value.import?.id == importId || _state.value.busy) return
+        _state.update { it.copy(busy = true, error = null) }
+        viewModelScope.launch {
+            attempt {
+                val imp = imports.import(importId)
+                val checked = imp.status == ImportStatus.READY || imp.status == ImportStatus.NEEDS_ATTENTION
+                if (checked) {
+                    val validation = imports.validation(imp.id)
+                    val issues = imports.issues(imp.id, "ERROR").items + imports.issues(imp.id, "WARNING").items
+                    Triple(imp, validation, issues)
+                } else {
+                    Triple(imp, null, emptyList())
+                }
+            }
+                .onSuccess { (imp, validation, issues) ->
+                    _state.update {
+                        it.copy(
+                            busy = false,
+                            import = imp,
+                            mapping = MappingRules.prefill(imp.detected),
+                            dateFormat = imp.detected?.suggestedDateFormat?.takeIf { _ -> imp.detected.dateFormatAmbiguous.not() },
+                            missingDaysAreZero = imp.missingDaysAreZero,
+                            validation = validation,
+                            issues = issues,
+                            step = if (validation != null) WizardStep.Validation else WizardStep.Mapping,
+                        )
+                    }
+                }
+                .onFailure { e -> _state.update { it.copy(busy = false, error = e.toUiText()) } }
+        }
+    }
 
     /** Step 2 to 3: nothing leaves the phone until the user taps Upload. */
     fun upload() {

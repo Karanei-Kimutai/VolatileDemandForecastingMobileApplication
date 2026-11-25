@@ -1,5 +1,9 @@
 package com.example.volatiledemandforecasting.core.ui.theme
 
+import android.app.Activity
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -19,7 +23,8 @@ private val LightColorScheme = lightColorScheme(
     onSecondary = Color.White,
     secondaryContainer = LightSecondaryContainer,
     onSecondaryContainer = LightOnSecondaryContainer,
-    tertiary = Teal,
+    tertiary = TealDeep,
+    onTertiary = Color.White,
     background = LightBackground,
     onBackground = LightOnSurface,
     surface = LightSurface,
@@ -33,8 +38,8 @@ private val LightColorScheme = lightColorScheme(
     errorContainer = LightErrorContainer,
     onErrorContainer = LightOnErrorContainer,
     surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF9FBFC),
-    surfaceContainer = Color(0xFFF1F4F7),
+    surfaceContainerLow = Color(0xFFF9FAFC),
+    surfaceContainer = Color(0xFFF0F3F6),
     surfaceContainerHigh = Color(0xFFEBEFF3),
     surfaceContainerHighest = Color(0xFFE5EAEF),
 )
@@ -61,11 +66,11 @@ private val DarkColorScheme = darkColorScheme(
     onError = Color(0xFF4A0A0A),
     errorContainer = DarkErrorContainer,
     onErrorContainer = DarkOnErrorContainer,
-    surfaceContainerLowest = Color(0xFF0B121A),
-    surfaceContainerLow = Color(0xFF131C26),
-    surfaceContainer = Color(0xFF1A2530),
-    surfaceContainerHigh = Color(0xFF212D3A),
-    surfaceContainerHighest = Color(0xFF293645),
+    surfaceContainerLowest = Color(0xFF081018),
+    surfaceContainerLow = Color(0xFF111A24),
+    surfaceContainer = Color(0xFF17222E),
+    surfaceContainerHigh = Color(0xFF1E2A37),
+    surfaceContainerHighest = Color(0xFF263341),
 )
 
 private val LocalAppColors = staticCompositionLocalOf { LightAppColors }
@@ -81,6 +86,19 @@ fun VolatileDemandForecastingTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
+    // The app's own theme setting can differ from the system's: make the status and navigation
+    // bar icons follow the app, or they stay white on a light screen.
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            (view.context as? Activity)?.window?.let { window ->
+                WindowCompat.getInsetsController(window, view).apply {
+                    isAppearanceLightStatusBars = !darkTheme
+                    isAppearanceLightNavigationBars = !darkTheme
+                }
+            }
+        }
+    }
     CompositionLocalProvider(LocalAppColors provides if (darkTheme) DarkAppColors else LightAppColors) {
         MaterialTheme(
             colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,

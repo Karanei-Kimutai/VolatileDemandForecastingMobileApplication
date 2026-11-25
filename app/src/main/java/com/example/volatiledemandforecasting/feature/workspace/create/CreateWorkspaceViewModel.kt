@@ -52,6 +52,8 @@ data class CreateWorkspaceState(
     val submitting: Boolean = false,
     /** Set once the workspace exists, so a failed store step doesn't create a second workspace on retry. */
     val createdWorkspace: WorkspaceDto? = null,
+    /** True when [createdWorkspace] existed before this form opened: only its shop is being added. */
+    val existingWorkspace: Boolean = false,
     val error: UiText? = null,
 )
 
@@ -68,6 +70,11 @@ class CreateWorkspaceViewModel(
 
     fun edit(transform: CreateWorkspaceState.() -> CreateWorkspaceState) =
         _state.update { it.transform().copy(error = null) }
+
+    /** Adds the shop to a business that has none yet, instead of creating a second business. */
+    fun useWorkspace(workspace: WorkspaceDto) = _state.update {
+        if (it.createdWorkspace != null) it else it.copy(createdWorkspace = workspace, existingWorkspace = true)
+    }
 
     fun clearError(field: StoreField) = _state.update { it.copy(errors = it.errors - field, error = null) }
 

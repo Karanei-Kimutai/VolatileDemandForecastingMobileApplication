@@ -2,6 +2,7 @@ package com.example.volatiledemandforecasting.app.navigation
 
 import androidx.annotation.StringRes
 import android.os.Bundle
+import com.example.volatiledemandforecasting.data.workspace.WorkspaceDto
 import androidx.navigation.NavController
 import androidx.navigation.navOptions
 import com.example.volatiledemandforecasting.R
@@ -26,6 +27,31 @@ const val ARG_PRODUCT_NAME = "productName"
 const val ARG_HORIZON = "horizon"
 const val ARG_JOB_ID = "jobId"
 const val ARG_FORECAST_ID = "forecastId"
+const val ARG_IMPORT_ID = "importId"
+const val ARG_WORKSPACE_ID = "workspaceId"
+const val ARG_WORKSPACE_NAME = "workspaceName"
+const val ARG_WORKSPACE_ROLE = "workspaceRole"
+
+/** The shop form; given a business that has no shop yet, it only adds the shop to it. */
+fun NavController.navigateToCreateShop(workspace: WorkspaceDto? = null) =
+    navigate(
+        R.id.createWorkspaceFragment,
+        workspace?.let {
+            Bundle().apply {
+                putString(ARG_WORKSPACE_ID, it.id)
+                putString(ARG_WORKSPACE_NAME, it.name)
+                putString(ARG_WORKSPACE_ROLE, it.role)
+            }
+        },
+    )
+
+/** Opens the upload wizard; with [importId] it picks up that half-finished upload. */
+fun NavController.navigateToImportWizard(importId: String? = null) =
+    navigate(
+        R.id.importWizardFragment,
+        importId?.let { Bundle().apply { putString(ARG_IMPORT_ID, it) } },
+        androidx.navigation.navOptions { launchSingleTop = true },
+    )
 
 fun NavController.navigateToProduct(productId: String) =
     navigate(R.id.productDetailFragment, Bundle().apply { putString(ARG_PRODUCT_ID, productId) })

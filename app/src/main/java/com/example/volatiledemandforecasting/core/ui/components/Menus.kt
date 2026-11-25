@@ -8,7 +8,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AssistChip
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material3.FilterChip
+import com.example.volatiledemandforecasting.core.ui.theme.Sizes
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -114,6 +117,27 @@ fun ContextMenuBox(
 }
 
 /**
+ * The visible "More actions" button on a list item: the same entries as its long-press
+ * [ContextMenuBox], so no action is hidden behind a gesture people may not know.
+ */
+@Composable
+fun ItemActionsButton(entries: List<MenuEntry>, itemLabel: String, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier) {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                Icons.Filled.MoreVert,
+                contentDescription = stringResource(R.string.item_actions_description, itemLabel),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            MenuEntries(entries) { expanded = false }
+        }
+    }
+}
+
+/**
  * Popup menu (spec §6.3): a tap on a filter, sort or view control opens quick choices.
  * It changes a temporary view option; it is not an action menu for an object.
  */
@@ -128,10 +152,14 @@ fun <T> PopupMenuButton(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier) {
-        AssistChip(
+        FilterChip(
+            selected = false,
             onClick = { expanded = true },
             label = { Text(label) },
+            leadingIcon = { Icon(Icons.Filled.FilterList, contentDescription = null, modifier = Modifier.size(18.dp)) },
             trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.heightIn(min = Sizes.touchTarget),
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { option ->

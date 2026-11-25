@@ -15,6 +15,7 @@ import androidx.navigation.navOptions
 import com.example.volatiledemandforecasting.app.appContainer
 import com.example.volatiledemandforecasting.app.navigation.AUTH_DESTINATIONS
 import com.example.volatiledemandforecasting.core.security.SessionState
+import com.example.volatiledemandforecasting.data.workspace.Selection
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -71,5 +72,10 @@ class MainActivity : FragmentActivity() {
         }
         // Clear the whole back stack, so Back never returns to the previous user's screens.
         navController.navigate(target, null, navOptions { popUpTo(navController.graph.id) { inclusive = true } })
+        // Just signed in with no shop chosen (a new account, or after signing out): open the picker,
+        // as the tour does, rather than a Home that can only say "choose a shop". Back returns to Home.
+        if (target == R.id.dashboardFragment && appContainer.activeStore.state.value is Selection.None) {
+            navController.navigate(R.id.workspacePickerFragment)
+        }
     }
 }

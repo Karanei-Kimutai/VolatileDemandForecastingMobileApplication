@@ -1,0 +1,24 @@
+<resources>
+    <plurals name="products_count">
+        <item quantity="one">%1$d product</item>
+        <item quantity="other">%1$d products</item>
+    </plurals>
+    <!-- Quantity: the total number of products. -->
+    <plurals name="dash_forecast_counts">
+        <item quantity="one">%1$d of %2$d product forecast · made %3$s</item>
+        <item quantity="other">%1$d of %2$d products forecast · made %3$s</item>
+    </plurals>
+    <plurals name="fc_products_done">
+        <item quantity="one">%1$d of %2$d product</item>
+        <item quantity="other">%1$d of %2$d products</item>
+    </plurals>
+    <plurals name="product_range_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <!-- Quantity: the number of recorded days (%3$d). -->
+    <plurals name="product_chart_description">
+        <item quantity="one">Daily units sold over the last %1$d days: %2$s units in total, on %3$d recorded day. Gaps are days with no sales recorded.</item>
+        <item quantity="other">Daily units sold over the last %1$d days: %2$s units in total, on %3$d recorded days. Gaps are days with no sales recorded.</item>
+    </plurals>
+</resources>

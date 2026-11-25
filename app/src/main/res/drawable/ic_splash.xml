@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash icon: the app mark on its own navy disc. Some phones ignore
+     windowSplashScreenIconBackgroundColor, and a white mark on the light splash would vanish (P28). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF17324D"
+        android:pathData="M54,54m-35,0a35,35 0,1 1,70 0a35,35 0,1 1,-70 0" />
+    <!-- Recorded sales (solid line) running into the forecast (dots), inside the 66dp safe zone. -->
+    <path
+        android:pathData="M30,76 L78,76"
+        android:strokeColor="#66FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M30,68 L40,58 L48,63 L58,50"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FF5ED3CB"
+        android:pathData="M65,45m-2.75,0a2.75,2.75 0,1 1,5.5 0a2.75,2.75 0,1 1,-5.5 0" />
+    <path
+        android:fillColor="#FF5ED3CB"
+        android:pathData="M71,40m-2.75,0a2.75,2.75 0,1 1,5.5 0a2.75,2.75 0,1 1,-5.5 0" />
+    <path
+        android:fillColor="#FF5ED3CB"
+        android:pathData="M77,35m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+</vector>

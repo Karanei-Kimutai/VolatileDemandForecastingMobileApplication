@@ -1,5 +1,23 @@
 package com.example.volatiledemandforecasting.feature.settings
 
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.example.volatiledemandforecasting.core.ui.components.AppCard
+import com.example.volatiledemandforecasting.core.ui.components.IconBadge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,31 +47,55 @@ class HelpFragment : ShellFragment() {
     override fun ScreenContent(padding: PaddingValues) {
         val navController = findNavController()
         Column(
-            Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.cardGap),
         ) {
-            Text(stringResource(R.string.help_start_title), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.help_start_body), style = MaterialTheme.typography.bodyMedium)
-            SecondaryButton(
-                stringResource(R.string.help_show_tour),
-                { navController.navigate(R.id.onboardingFragment, bundleOf(ARG_TOUR_REPLAY to true)) },
-                Modifier.fillMaxWidth(),
-            )
-            listOf(
-                R.string.help_file_title to R.string.help_file_body,
-                R.string.help_forecasts_title to R.string.help_forecasts_body,
-                R.string.help_ai_title to R.string.help_ai_body,
-                R.string.help_limits_title to R.string.help_limits_body,
-                R.string.help_privacy_title to R.string.help_privacy_body,
-            ).forEach { (title, body) ->
-                Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(body), style = MaterialTheme.typography.bodyMedium)
+            HelpCard(Icons.Outlined.Flag, R.string.help_start_title, R.string.help_start_body) {
+                SecondaryButton(
+                    stringResource(R.string.help_show_tour),
+                    { navController.navigate(R.id.onboardingFragment, bundleOf(ARG_TOUR_REPLAY to true)) },
+                    Modifier.fillMaxWidth().padding(top = Spacing.sm),
+                    icon = Icons.Outlined.PlayCircle,
+                )
             }
-            Text(stringResource(R.string.help_terms_title), style = MaterialTheme.typography.titleMedium)
-            Term.entries.forEach { term ->
-                Text(stringResource(term.title), style = MaterialTheme.typography.titleSmall)
-                Text(stringResource(term.body), style = MaterialTheme.typography.bodyMedium)
+            listOf(
+                Triple(Icons.Outlined.Description, R.string.help_file_title, R.string.help_file_body),
+                Triple(Icons.Outlined.Insights, R.string.help_forecasts_title, R.string.help_forecasts_body),
+                Triple(Icons.Outlined.AutoAwesome, R.string.help_ai_title, R.string.help_ai_body),
+                Triple(Icons.Outlined.Info, R.string.help_limits_title, R.string.help_limits_body),
+                Triple(Icons.Outlined.Lock, R.string.help_privacy_title, R.string.help_privacy_body),
+            ).forEach { (icon, title, body) -> HelpCard(icon, title, body) }
+            // The same definitions the ⓘ buttons show, gathered in one place.
+            AppCard {
+                Text(
+                    stringResource(R.string.help_terms_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.semantics { heading() },
+                )
+                Term.entries.forEachIndexed { index, term ->
+                    if (index > 0) HorizontalDivider(Modifier.padding(vertical = Spacing.sm), color = MaterialTheme.colorScheme.outlineVariant)
+                    else Spacer(Modifier.height(Spacing.sm))
+                    Text(stringResource(term.title), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(term.body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun HelpCard(icon: ImageVector, title: Int, body: Int, extra: @Composable () -> Unit = {}) {
+    AppCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            IconBadge(icon)
+            Text(stringResource(title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).semantics { heading() })
+        }
+        Text(
+            stringResource(body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.md),
+        )
+        extra()
     }
 }

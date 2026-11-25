@@ -1,10 +1,25 @@
 package com.example.volatiledemandforecasting.feature.forecasts.result
 
-import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.outlined.Rule
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import com.example.volatiledemandforecasting.core.ui.components.AppCard
+import com.example.volatiledemandforecasting.core.ui.components.InfoHint
+import com.example.volatiledemandforecasting.core.ui.components.TertiaryButton
+import com.example.volatiledemandforecasting.core.ui.components.Term
+import com.example.volatiledemandforecasting.core.ui.components.rememberShowMessage
+import com.example.volatiledemandforecasting.core.ui.theme.Sizes
+import com.example.volatiledemandforecasting.core.ui.theme.tabular
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -15,9 +30,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FileDownload
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.OutlinedButton
 import com.example.volatiledemandforecasting.data.forecast.ShownMethod
 import com.example.volatiledemandforecasting.data.forecast.shownTotal
 import com.example.volatiledemandforecasting.data.forecast.shownValue
@@ -93,6 +105,13 @@ class ForecastResultFragment : ShellFragment() {
 
     private var showDeleteConfirm by mutableStateOf(false)
 
+    /** The product's name, so the screen says what it is about. */
+    @Composable
+    override fun title(): String {
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        return (state as? UiState.Content)?.data?.forecast?.product?.name ?: stringResource(titleRes)
+    }
+
     @Composable
     override fun RowScope.ContextualAction() {
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -102,9 +121,6 @@ class ForecastResultFragment : ShellFragment() {
                 Icon(Icons.Outlined.FileDownload, contentDescription = stringResource(R.string.res_export_csv))
             }
         }
-        IconButton(onClick = { showDeleteConfirm = true }) {
-            Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.res_delete))
-        }
     }
 
     @Composable
@@ -113,14 +129,16 @@ class ForecastResultFragment : ShellFragment() {
         val display by viewModel.display.collectAsStateWithLifecycle()
         val context = LocalContext.current
         val navController = findNavController()
+        val showMessage = rememberShowMessage()
+        val exportDone = stringResource(R.string.res_export_done)
 
         LaunchedEffect(Unit) {
             viewModel.events.collect { event ->
                 when (event) {
-                    ResultEvent.Exported -> Toast.makeText(context, R.string.res_export_done, Toast.LENGTH_SHORT).show()
-                    is ResultEvent.ExportFailed -> Toast.makeText(context, event.message.asString(context), Toast.LENGTH_LONG).show()
+                    ResultEvent.Exported -> showMessage(exportDone)
+                    is ResultEvent.ExportFailed -> showMessage(event.message.asString(context))
                     ResultEvent.Deleted -> navController.popBackStack()
-                    is ResultEvent.DeleteFailed -> Toast.makeText(context, event.message.asString(context), Toast.LENGTH_LONG).show()
+                    is ResultEvent.DeleteFailed -> showMessage(event.message.asString(context))
                 }
             }
         }
@@ -144,7 +162,7 @@ class ForecastResultFragment : ShellFragment() {
             if (!forecast.isCompleted) {
                 NotFinished(forecast, onRefresh = viewModel::load, modifier = Modifier.padding(padding))
             } else {
-                ResultBody(data, display, viewModel::setDisplay, Modifier.padding(padding))
+                ResultBody(data, display, viewModel::setDisplay, onDelete = { showDeleteConfirm = true }, Modifier.padding(padding))
             }
         }
     }
@@ -152,7 +170,7 @@ class ForecastResultFragment : ShellFragment() {
 
 @Composable
 private fun NotFinished(forecast: ForecastDto, onRefresh: () -> Unit, modifier: Modifier) {
-    Column(modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+    Column(modifier.padding(Spacing.gutter), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         if (forecast.status == JobStatus.FAILED) {
             val message = forecast.error?.let { ApiException(httpStatus = 0, code = it.code, message = it.message).toUiText() }
             InlineMessage(stringResource(R.string.res_failed, message?.asString().orEmpty()), StatusKind.Error)
@@ -164,53 +182,78 @@ private fun NotFinished(forecast: ForecastDto, onRefresh: () -> Unit, modifier: 
 }
 
 @Composable
-private fun ResultBody(data: ResultData, display: TableDisplay, onDisplay: (TableDisplay) -> Unit, modifier: Modifier) {
+private fun ResultBody(
+    data: ResultData,
+    display: TableDisplay,
+    onDisplay: (TableDisplay) -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier,
+) {
     val forecast = data.forecast
     val shown = data.shown.usedFor(forecast.points)
     val aiUsed = forecast.points.any { it.ai != null }
     var showAccuracy by rememberSaveable { mutableStateOf(false) }
     Column(
-        modifier.verticalScroll(rememberScrollState()).padding(Spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+        modifier.verticalScroll(rememberScrollState()).padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.cardGap),
     ) {
-        Header(forecast)
         Headline(forecast, shown)
+
+        if (forecast.horizon?.validated == false) InlineMessage(stringResource(R.string.res_experimental_note), StatusKind.Warning, announce = false)
+        if (data.shown == ShownMethod.Ai && shown == ShownMethod.Simple && forecast.aiUnavailableReason != null) {
+            InlineMessage(stringResource(R.string.res_ai_unavailable_note, aiReasonText(forecast.aiUnavailableReason)), StatusKind.Neutral, announce = false)
+        }
 
         val chart = remember(forecast) { buildChartModel(forecast) }
         if (chart != null) {
-            val onSurface = MaterialTheme.colorScheme.onSurface
-            val primary = MaterialTheme.colorScheme.primary
-            val success = MaterialTheme.appColors.success
+            val colors = MaterialTheme.appColors
             val expected = if (shown == ShownMethod.Ai) chart.ai else chart.baseline
+            val historyLabel = stringResource(R.string.res_series_history)
+            val expectedLabel = stringResource(R.string.res_series_expected)
+            val actualLabel = stringResource(R.string.res_series_actual)
             val series = buildList {
-                add(ChartSeries(stringResource(R.string.res_series_history), chart.history, onSurface, LineStyle.Solid))
-                add(ChartSeries(stringResource(R.string.res_series_expected), expected, primary, LineStyle.Dashed))
-                if (chart.actual.any { it != null }) add(ChartSeries(stringResource(R.string.res_series_actual), chart.actual, success, LineStyle.Dots))
+                add(ChartSeries(historyLabel, chart.history, colors.chartHistory, LineStyle.Solid))
+                add(ChartSeries(expectedLabel, expected, colors.chartForecast, LineStyle.Dashed, fill = true))
+                if (chart.actual.any { it != null }) add(ChartSeries(actualLabel, chart.actual, colors.chartActual, LineStyle.Dots))
             }
             val labels = listOf(0, chart.dayCount / 2, chart.dayCount - 1).distinct().map { it to Formatting.shortDate(chart.dateAt(it).toString()) }
-            LineChart(
-                series = series,
-                pointCount = chart.dayCount,
-                xLabels = labels,
-                description = stringResource(R.string.chart_description, series.joinToString { it.label }),
-                markerIndex = chart.markerIndex,
-                markerLabel = stringResource(R.string.res_from_date, Formatting.shortDate(forecast.asOfDate)),
-                height = 220.dp,
-            )
+            AppCard {
+                Text(stringResource(R.string.res_chart_title), style = MaterialTheme.typography.titleMedium)
+                LineChart(
+                    series = series,
+                    pointCount = chart.dayCount,
+                    xLabels = labels,
+                    description = stringResource(
+                        R.string.res_chart_description,
+                        historyLabel,
+                        expectedLabel,
+                        Formatting.shortDate(forecast.asOfDate),
+                    ),
+                    markerIndex = chart.markerIndex,
+                    markerLabel = stringResource(R.string.res_from_date, Formatting.shortDate(forecast.asOfDate)),
+                    height = 220.dp,
+                    modifier = Modifier.padding(top = Spacing.md),
+                )
+            }
         }
 
         DayList(forecast, shown)
 
-        if (forecast.priceAssumption == "LAST_KNOWN") InlineMessage(stringResource(R.string.res_price_assumed), StatusKind.Neutral)
-        if (forecast.horizon?.validated == false) InlineMessage(stringResource(R.string.res_experimental_note), StatusKind.Warning)
-        if (data.shown == ShownMethod.Ai && shown == ShownMethod.Simple && forecast.aiUnavailableReason != null) {
-            InlineMessage(stringResource(R.string.res_ai_unavailable_note, aiReasonText(forecast.aiUnavailableReason)), StatusKind.Neutral)
+        if (forecast.priceAssumption == "LAST_KNOWN") {
+            Text(
+                stringResource(R.string.res_price_assumed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
-        // The comparison and the evidence, tucked away for those who want them.
-        OutlinedButton(onClick = { showAccuracy = !showAccuracy }, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(if (showAccuracy) R.string.res_accuracy_hide else R.string.res_accuracy_show))
-        }
+        // The comparison and the evidence, one tap away for those who want them.
+        DisclosureRow(
+            title = stringResource(R.string.res_accuracy_show),
+            supporting = stringResource(R.string.res_accuracy_supporting),
+            expanded = showAccuracy,
+            onToggle = { showAccuracy = !showAccuracy },
+        )
         if (showAccuracy) {
             Text(
                 stringResource(if (data.shown == ShownMethod.Ai) R.string.res_why_ai else R.string.res_why_simple),
@@ -269,52 +312,99 @@ private fun ResultBody(data: ResultData, display: TableDisplay, onDisplay: (Tabl
 
             // The known bias of multi-day AI forecasts, from the model card's limitations.
             if (shown == ShownMethod.Ai && (forecast.horizon?.days ?: 0) > 1) {
-                InlineMessage(stringResource(R.string.res_four_percent), StatusKind.Warning)
+                InlineMessage(stringResource(R.string.res_four_percent), StatusKind.Warning, announce = false)
             }
         }
+
+        // Rarely needed and can't be undone, so it sits at the end rather than in the top bar.
+        TertiaryButton(
+            stringResource(R.string.res_delete),
+            onDelete,
+            Modifier.padding(top = Spacing.sm),
+            icon = Icons.Outlined.Delete,
+            destructive = true,
+        )
     }
 }
 
+/** A row that shows or hides a section below it. The state is spoken as well as drawn. */
 @Composable
-private fun Header(forecast: ForecastDto) {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Text(forecast.product.name, style = MaterialTheme.typography.titleLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            if (forecast.horizon?.validated == false) StatusChip(stringResource(R.string.res_experimental), StatusKind.Warning)
-            forecast.product.demandClass?.label?.let { DemandClassChip(it) }
+private fun DisclosureRow(title: String, supporting: String, expanded: Boolean, onToggle: () -> Unit) {
+    val state = stringResource(if (expanded) R.string.state_expanded else R.string.state_collapsed)
+    Surface(
+        onClick = onToggle,
+        modifier = Modifier.fillMaxWidth().semantics { stateDescription = state },
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(Sizes.hairline, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(Modifier.padding(Spacing.lg), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Icon(Icons.Outlined.Rule, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(
+                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
 
-/** The one number a shop owner came for: expected units over the period. */
+/**
+ * The one number a shop owner came for: expected units over the period, with the dates it covers
+ * and which method produced it.
+ */
 @Composable
 private fun Headline(forecast: ForecastDto, shown: ShownMethod) {
     val days = forecast.horizon?.days ?: forecast.points.size
-    Card(
+    val first = forecast.points.firstOrNull()?.date
+    val last = forecast.points.lastOrNull()?.date
+    Surface(
         Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
     ) {
         Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(
-                stringResource(R.string.res_expected_label, horizonLabel(days).lowercase(), Formatting.date(forecast.asOfDate)),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            Text(
-                stringResource(
-                    R.string.res_expected_value,
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.res_expected_label, horizonLabel(days).lowercase(), Formatting.date(forecast.asOfDate)),
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                if (forecast.horizon?.validated == false) StatusChip(stringResource(R.string.res_experimental), StatusKind.Warning)
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(
                     Formatting.units(forecast.points.shownTotal(shown), TableDisplay.WholeUnits),
+                    style = MaterialTheme.typography.displaySmall.tabular(),
+                )
+                Text(
                     forecast.product.unitOfMeasure,
-                ),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            Text(
-                stringResource(if (shown == ShownMethod.Ai) R.string.res_from_ai else R.string.res_from_simple),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = Spacing.sm),
+                )
+            }
+            if (first != null && last != null && first != last) {
+                Text(
+                    stringResource(R.string.res_period, Formatting.date(first), Formatting.date(last)),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else if (first != null) {
+                Text(stringResource(R.string.res_period_single, Formatting.date(first)), style = MaterialTheme.typography.bodyMedium)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(if (shown == ShownMethod.Ai) R.string.res_from_ai else R.string.res_from_simple),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f),
+                )
+                InfoHint(if (shown == ShownMethod.Ai) Term.AiForecast else Term.SimpleForecast)
+            }
+            forecast.product.demandClass?.label?.let { DemandClassChip(it) }
         }
     }
 }
@@ -323,8 +413,12 @@ private fun Headline(forecast: ForecastDto, shown: ShownMethod) {
 private fun DayList(forecast: ForecastDto, shown: ShownMethod) {
     val showActual = forecast.points.any { it.actual != null }
     val none = stringResource(R.string.res_not_known)
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Text(stringResource(R.string.res_table_title), style = MaterialTheme.typography.titleMedium)
+    AppCard(contentPadding = false) {
+        Text(
+            stringResource(R.string.res_table_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.lg, bottom = Spacing.sm),
+        )
         TableRow(
             listOfNotNull(
                 stringResource(R.string.res_col_date),
@@ -333,16 +427,17 @@ private fun DayList(forecast: ForecastDto, shown: ShownMethod) {
             ),
             header = true,
         )
-        HorizontalDivider()
-        forecast.points.forEach { p ->
+        forecast.points.forEachIndexed { i, p ->
             TableRow(
                 listOfNotNull(
                     Formatting.shortDate(p.date),
                     Formatting.units(p.shownValue(shown), TableDisplay.WholeUnits, none),
                     Formatting.units(p.actual, TableDisplay.WholeUnits, none).takeIf { showActual },
-                )
+                ),
+                striped = i % 2 == 1,
             )
         }
+        Box(Modifier.padding(bottom = Spacing.sm))
     }
 }
 
@@ -355,8 +450,11 @@ private fun ForecastTable(forecast: ForecastDto, display: TableDisplay, onDispla
     val totals = totalsOf(points)
     val none = stringResource(R.string.res_not_known)
 
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    AppCard(contentPadding = false) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = Spacing.lg, end = Spacing.sm, top = Spacing.sm, bottom = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(stringResource(R.string.res_compare_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
             // Popup menu (spec §6.3): a display option only. Totals are always summed from the raw values.
             PopupMenuButton(
@@ -377,8 +475,7 @@ private fun ForecastTable(forecast: ForecastDto, display: TableDisplay, onDispla
             ),
             header = true,
         )
-        HorizontalDivider()
-        points.forEach { p ->
+        points.forEachIndexed { i, p ->
             TableRow(
                 listOfNotNull(
                     Formatting.shortDate(p.date),
@@ -386,11 +483,12 @@ private fun ForecastTable(forecast: ForecastDto, display: TableDisplay, onDispla
                     Formatting.units(p.baseline, display, none),
                     Formatting.units(p.seasonalNaive, display, none).takeIf { showLastWeek },
                     Formatting.units(p.actual, display, none).takeIf { showActual },
-                )
+                ),
+                striped = i % 2 == 1,
             )
         }
         if (points.size > 1) {
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             TableRow(
                 listOfNotNull(
                     stringResource(R.string.res_total_title),
@@ -405,14 +503,25 @@ private fun ForecastTable(forecast: ForecastDto, display: TableDisplay, onDispla
     }
 }
 
+/** One table line. Figures are right-aligned with equal-width digits so columns read down cleanly. */
 @Composable
-private fun TableRow(cells: List<String>, header: Boolean = false) {
-    Row(Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
+private fun TableRow(cells: List<String>, header: Boolean = false, striped: Boolean = false) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(if (striped) MaterialTheme.colorScheme.surfaceContainer else Color.Transparent)
+            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+    ) {
         cells.forEachIndexed { i, text ->
             Text(
                 text,
                 Modifier.weight(if (i == 0) 1.4f else 1f),
-                style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium,
+                style = if (header) {
+                    MaterialTheme.typography.labelMedium
+                } else {
+                    MaterialTheme.typography.bodyMedium.tabular()
+                },
+                color = if (header) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 fontWeight = if (header) FontWeight.SemiBold else FontWeight.Normal,
                 textAlign = if (i == 0) TextAlign.Start else TextAlign.End,
             )

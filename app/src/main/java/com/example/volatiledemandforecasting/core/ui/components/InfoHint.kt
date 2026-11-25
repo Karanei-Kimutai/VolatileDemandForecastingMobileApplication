@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.volatiledemandforecasting.R
+import com.example.volatiledemandforecasting.core.ui.theme.Sizes
 
 /** Words the app uses that a shop owner may not know. Each has a short plain explanation. */
 enum class Term(@StringRes val title: Int, @StringRes val body: Int) {
@@ -29,12 +30,12 @@ enum class Term(@StringRes val title: Int, @StringRes val body: Int) {
     Training(R.string.term_training_title, R.string.term_training_body),
 }
 
-/** A small "?" button next to a label. Tapping it explains [term] in a dialog. */
+/** A "?" button next to a label, with a full 48dp touch target. Tapping it explains [term] in a dialog. */
 @Composable
 fun InfoHint(term: Term, modifier: Modifier = Modifier) {
     var open by rememberSaveable { mutableStateOf(false) }
     val title = stringResource(term.title)
-    IconButton(onClick = { open = true }, modifier = modifier.size(32.dp)) {
+    IconButton(onClick = { open = true }, modifier = modifier.size(Sizes.touchTarget)) {
         Icon(
             Icons.AutoMirrored.Outlined.HelpOutline,
             contentDescription = stringResource(R.string.term_what_is, title),

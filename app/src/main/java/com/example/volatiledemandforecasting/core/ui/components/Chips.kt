@@ -1,17 +1,27 @@
 package com.example.volatiledemandforecasting.core.ui.components
 
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.ReportProblem
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.volatiledemandforecasting.R
 import com.example.volatiledemandforecasting.core.ui.theme.Spacing
@@ -19,9 +29,18 @@ import com.example.volatiledemandforecasting.core.ui.theme.appColors
 
 enum class StatusKind { Success, Warning, Error, Neutral }
 
-/** Status is always spelled out in text, never colour alone (spec §16). */
+/** The icon that goes with a status, so colour is never the only signal (spec §16). */
+val StatusKind.icon: ImageVector
+    get() = when (this) {
+        StatusKind.Success -> Icons.Outlined.CheckCircle
+        StatusKind.Warning -> Icons.Outlined.ReportProblem
+        StatusKind.Error -> Icons.Outlined.ErrorOutline
+        StatusKind.Neutral -> Icons.Outlined.Info
+    }
+
+/** Status is always spelled out in text, with an icon, never colour alone (spec §16). */
 @Composable
-fun StatusChip(text: String, kind: StatusKind, modifier: Modifier = Modifier) {
+fun StatusChip(text: String, kind: StatusKind, modifier: Modifier = Modifier, icon: ImageVector? = kind.icon) {
     val colors = MaterialTheme.appColors
     val (container, content) = when (kind) {
         StatusKind.Success -> colors.successContainer to colors.onSuccessContainer
@@ -29,54 +48,31 @@ fun StatusChip(text: String, kind: StatusKind, modifier: Modifier = Modifier) {
         StatusKind.Error -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
         StatusKind.Neutral -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Pill(text, container, content, modifier)
+    Pill(text, container, content, modifier, icon)
 }
 
 /** Shows the API's plain-language `demandClass.label`, never the class code. */
 @Composable
 fun DemandClassChip(label: String, modifier: Modifier = Modifier) =
-    Pill(label, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, modifier)
+    Pill(label, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, modifier, null)
 
-/** Marks the read-only Reference workspace. Its own colour so it is never mistaken for a status. */
+/** Marks the read-only sample shop. Its own colour so it is never mistaken for a status. */
 @Composable
 fun DemoDataBadge(modifier: Modifier = Modifier) {
     val colors = MaterialTheme.appColors
-    Pill(stringResource(R.string.demo_data_badge), colors.demoBadge, colors.onDemoBadge, modifier)
+    Pill(stringResource(R.string.demo_data_badge), colors.demoBadge, colors.onDemoBadge, modifier, Icons.Outlined.Visibility)
 }
 
 @Composable
-private fun Pill(text: String, container: Color, content: Color, modifier: Modifier) {
+private fun Pill(text: String, container: Color, content: Color, modifier: Modifier, icon: ImageVector?) {
     Surface(modifier, shape = RoundedCornerShape(50), color = container, contentColor = content) {
-        Text(
-            text,
-            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-            style = MaterialTheme.typography.labelMedium,
-        )
-    }
-}
-
-/** A labelled number from the API. The caller formats it; this never computes anything. */
-@Composable
-fun MetricCard(label: String, value: String, modifier: Modifier = Modifier, supporting: String? = null, info: Term? = null) {
-    Card(
-        modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-    ) {
-        Column(Modifier.padding(Spacing.lg)) {
-            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f, fill = false))
-                if (info != null) InfoHint(info)
-            }
-            Text(value, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = Spacing.xs))
-            if (supporting != null) {
-                Text(
-                    supporting,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Spacing.xs),
-                )
-            }
+        Row(
+            Modifier.padding(start = if (icon != null) Spacing.sm else Spacing.md, end = Spacing.md, top = Spacing.xs, bottom = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+            Text(text, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

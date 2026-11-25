@@ -1,14 +1,9 @@
 package com.example.volatiledemandforecasting.app
 
+import android.os.Bundle
 import android.content.pm.ApplicationInfo
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Alignment
-import com.example.volatiledemandforecasting.core.ui.theme.Spacing
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
@@ -16,7 +11,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.outlined.AccountTree
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SwapHoriz
@@ -37,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.fragment.findNavController
 import com.example.volatiledemandforecasting.R
 import com.example.volatiledemandforecasting.app.navigation.MainTab
+import com.example.volatiledemandforecasting.app.navigation.navigateSingle
 import com.example.volatiledemandforecasting.app.navigation.navigateToTab
 import com.example.volatiledemandforecasting.core.ui.components.AppScaffold
 import com.example.volatiledemandforecasting.core.ui.components.ConfirmationDialog
@@ -44,7 +40,7 @@ import com.example.volatiledemandforecasting.core.ui.components.MenuEntry
 import com.example.volatiledemandforecasting.data.workspace.Selection
 
 /**
- * A [ComposeFragment] that sits inside the app shell: top bar with the workspace chip and
+ * A [ComposeFragment] that sits inside the app shell: top bar with the shop switcher and
  * Options menu, plus the bottom navigation bar when [tab] is set (spec §5).
  */
 abstract class ShellFragment : ComposeFragment() {
@@ -65,6 +61,32 @@ abstract class ShellFragment : ComposeFragment() {
     /** Supporting screens (no bottom bar) get a back arrow. */
     protected open val showBackButton: Boolean get() = tab == null
 
+    /** What the top bar's back arrow does. Screens with their own steps make it match system Back. */
+    protected open fun onTopBarBack() {
+        findNavController().navigateUp()
+    }
+
+    /** The top bar title. Screens about one thing (a product, a forecast) override it with that thing's name. */
+    /** The sign-out confirmation; screens other than the ⋮ menu (Settings) can open it too. */
+    private val signOutConfirm = mutableStateOf(false)
+
+    protected fun requestSignOut() {
+        signOutConfirm.value = true
+    }
+
+    override fun onViewStateRestored(savedInstanceState: Bundle?) {
+        super.onViewStateRestored(savedInstanceState)
+        signOutConfirm.value = savedInstanceState?.getBoolean(STATE_SIGN_OUT) ?: false
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_SIGN_OUT, signOutConfirm.value)
+    }
+
+    @Composable
+    protected open fun title(): String = stringResource(titleRes)
+
     /** A contextual action for the top bar, left of the Options menu. */
     @Composable
     protected open fun RowScope.ContextualAction() {}
@@ -81,40 +103,35 @@ abstract class ShellFragment : ComposeFragment() {
         val navController = findNavController()
         val state by shell.state.collectAsStateWithLifecycle()
         var showAbout by rememberSaveable { mutableStateOf(false) }
-        var showSignOutConfirm by rememberSaveable { mutableStateOf(false) }
+        var showSignOutConfirm by signOutConfirm
 
         val isDebuggable = (LocalContext.current.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
         val optionsMenu = buildList {
-            add(MenuEntry(stringResource(R.string.menu_switch_shop), { navController.navigate(R.id.workspacePickerFragment) }, Icons.Outlined.SwapHoriz))
-            add(MenuEntry(stringResource(R.string.menu_model_info), { navController.navigate(R.id.modelInfoFragment) }, Icons.Outlined.AccountTree))
-            add(MenuEntry(stringResource(R.string.menu_settings), { navController.navigate(R.id.settingsFragment) }, Icons.Outlined.Settings))
-            add(MenuEntry(stringResource(R.string.menu_help), { navController.navigate(R.id.helpFragment) }, Icons.AutoMirrored.Outlined.HelpOutline))
+            add(MenuEntry(stringResource(R.string.menu_switch_shop), { navController.navigateSingle(R.id.workspacePickerFragment) }, Icons.Outlined.SwapHoriz))
+            add(MenuEntry(stringResource(R.string.menu_model_info), { navController.navigateSingle(R.id.modelInfoFragment) }, Icons.Outlined.AutoAwesome))
+            add(MenuEntry(stringResource(R.string.menu_settings), { navController.navigateSingle(R.id.settingsFragment) }, Icons.Outlined.Settings))
+            add(MenuEntry(stringResource(R.string.menu_help), { navController.navigateSingle(R.id.helpFragment) }, Icons.AutoMirrored.Outlined.HelpOutline))
             add(MenuEntry(stringResource(R.string.menu_about), { showAbout = true }, Icons.Outlined.Info))
             add(MenuEntry(stringResource(R.string.menu_sign_out), { showSignOutConfirm = true }, Icons.AutoMirrored.Outlined.Logout))
             if (isDebuggable) {
-                add(MenuEntry(stringResource(R.string.menu_dev_gallery), { navController.navigate(R.id.devGalleryFragment) }, Icons.Outlined.Widgets))
+                add(MenuEntry(stringResource(R.string.menu_dev_gallery), { navController.navigateSingle(R.id.devGalleryFragment) }, Icons.Outlined.Widgets))
             }
         }
 
         AppScaffold(
-            title = stringResource(titleRes),
+            title = title(),
             workspace = state.workspace,
-            onWorkspaceClick = { navController.navigate(R.id.workspacePickerFragment) },
+            onWorkspaceClick = { navController.navigateSingle(R.id.workspacePickerFragment) },
             optionsMenu = optionsMenu,
             selectedTab = tab,
             onTabSelected = navController::navigateToTab,
-            onBack = if (showBackButton) ({ navController.navigateUp() }) else null,
+            onBack = if (showBackButton) ({ onTopBarBack() }) else null,
             actions = { ContextualAction() },
             content = { padding ->
                 val savedAt by appContainer.responseCache.servedFromCache.collectAsStateWithLifecycle()
                 Column(Modifier.padding(top = padding.calculateTopPadding())) {
                     if (showsCachedData) savedAt?.let { OfflineCopyNotice(it) }
-                    // The sample shop is example data: say so on every main screen, with the way out.
-                    val selection by collectSelection()
-                    if (tab != null && (selection as? Selection.Selected)?.store?.isReference == true) {
-                        SampleShopBanner(onSetUp = { navController.navigate(R.id.createWorkspaceFragment) })
-                    }
                     ScreenContent(PaddingValues(bottom = padding.calculateBottomPadding()))
                 }
             },
@@ -137,24 +154,6 @@ abstract class ShellFragment : ComposeFragment() {
 }
 
 @Composable
-private fun SampleShopBanner(onSetUp: () -> Unit) {
-    Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.padding(start = Spacing.lg, end = Spacing.sm, top = Spacing.xs, bottom = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                stringResource(R.string.sample_banner),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = onSetUp) { Text(stringResource(R.string.welcome_set_up)) }
-        }
-    }
-}
-
-@Composable
 private fun AboutDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val version = remember(context) {
@@ -167,3 +166,5 @@ private fun AboutDialog(onDismiss: () -> Unit) {
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } },
     )
 }
+
+private const val STATE_SIGN_OUT = "signOutConfirm"

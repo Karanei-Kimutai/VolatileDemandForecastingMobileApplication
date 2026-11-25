@@ -5,19 +5,23 @@ import com.example.volatiledemandforecasting.core.ui.components.Term
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import com.example.volatiledemandforecasting.core.ui.components.AppCard
+import com.example.volatiledemandforecasting.data.catalog.ProductRepository
+import com.example.volatiledemandforecasting.feature.products.Monogram
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -50,9 +54,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
-class ReadinessViewModel(private val stores: StoreRepository, private val activeStore: ActiveStore) : ViewModel() {
-    private val _state = MutableStateFlow<UiState<ReadinessDetailDto>>(UiState.Loading)
-    val state: StateFlow<UiState<ReadinessDetailDto>> = _state.asStateFlow()
+/** The readiness report plus product names: the report itself only carries SKUs (P32). */
+data class ReadinessScreen(val report: ReadinessDetailDto, val names: Map<String, String>)
+
+/** Products are fetched in pages of the API's maximum size; names are a nicety, so this stops early. */
+private const val NAME_PAGE_SIZE = 200
+private const val NAME_MAX_PAGES = 10
+
+class ReadinessViewModel(
+    private val stores: StoreRepository,
+    private val products: ProductRepository,
+    private val activeStore: ActiveStore,
+) : ViewModel() {
+    private val _state = MutableStateFlow<UiState<ReadinessScreen>>(UiState.Loading)
+    val state: StateFlow<UiState<ReadinessScreen>> = _state.asStateFlow()
     private var store: StoreSelection? = null
 
     init {
@@ -69,8 +84,21 @@ class ReadinessViewModel(private val stores: StoreRepository, private val active
         _state.value = UiState.Loading
         viewModelScope.launch {
             attempt { stores.readinessDetail(s.storeId) }
-                .onSuccess { _state.value = if (it.products.isEmpty()) UiState.Empty else UiState.Content(it) }
+                .onSuccess { report ->
+                    _state.value = if (report.products.isEmpty()) UiState.Empty else UiState.Content(ReadinessScreen(report, names(s.storeId)))
+                }
                 .onFailure { _state.value = it.toUiState() }
+        }
+    }
+
+    /** Product id to name. If a page fails, the rows that are missing fall back to the SKU. */
+    private suspend fun names(storeId: String): Map<String, String> = buildMap {
+        var page = 1
+        while (page <= NAME_MAX_PAGES) {
+            val result = attempt { products.products(storeId, "", null, page, NAME_PAGE_SIZE) }.getOrNull() ?: break
+            result.items.forEach { put(it.id, it.name) }
+            if (page * result.pageSize >= result.total || result.items.isEmpty()) break
+            page++
         }
     }
 }
@@ -78,21 +106,22 @@ class ReadinessViewModel(private val stores: StoreRepository, private val active
 class ReadinessFragment : ShellFragment() {
     override val titleRes = R.string.screen_readiness
 
-    private val viewModel: ReadinessViewModel by appViewModels { ReadinessViewModel(it.storeRepository, it.activeStore) }
+    private val viewModel: ReadinessViewModel by appViewModels { ReadinessViewModel(it.storeRepository, it.productRepository, it.activeStore) }
 
     @Composable
     override fun ScreenContent(padding: PaddingValues) {
         val selection by collectSelection()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val navController = findNavController()
-        StoreGate(selection, onChoose = {}, modifier = Modifier.padding(padding)) {
+        StoreGate(selection, modifier = Modifier.padding(padding)) {
             UiStateHost(
                 state, onRetry = viewModel::load, modifier = Modifier.padding(padding),
                 empty = { EmptyState(stringResource(R.string.ready_empty_title), stringResource(R.string.ready_empty_body)) },
-            ) { report ->
+            ) { screen ->
+                val report = screen.report
                 LazyColumn(
                     Modifier.padding(padding),
-                    contentPadding = PaddingValues(Spacing.lg),
+                    contentPadding = PaddingValues(horizontal = Spacing.gutter, vertical = Spacing.lg),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
                     item {
@@ -118,10 +147,11 @@ class ReadinessFragment : ShellFragment() {
                         }
                     }
                     items(report.products, key = { it.productId }) { product ->
+                        val open = { navController.navigateToProduct(product.productId) }
                         ContextMenuBox(
-                            listOf(MenuEntry(stringResource(R.string.product_view_details), { navController.navigateToProduct(product.productId) })),
-                            onClick = { navController.navigateToProduct(product.productId) },
-                        ) { ProductReadinessRow(product, report) }
+                            listOf(MenuEntry(stringResource(R.string.product_view_details), open)),
+                            onClick = open,
+                        ) { ProductReadinessRow(product, screen.names[product.productId], report) }
                     }
                 }
             }
@@ -130,15 +160,28 @@ class ReadinessFragment : ShellFragment() {
 }
 
 @Composable
-private fun ProductReadinessRow(product: ProductReadinessDto, report: ReadinessDetailDto) {
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-    ) {
-        Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(product.sku, style = MaterialTheme.typography.titleSmall)
-            StatusChip(stringResource(if (product.ready) R.string.ready_ok else R.string.ready_not_ok), if (product.ready) StatusKind.Success else StatusKind.Warning)
+private fun ProductReadinessRow(product: ProductReadinessDto, name: String?, report: ReadinessDetailDto) {
+    AppCard {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                Monogram(name ?: product.sku)
+                Column(Modifier.weight(1f)) {
+                    Text(name ?: product.sku, style = MaterialTheme.typography.titleSmall)
+                    if (name != null) {
+                        Text(
+                            stringResource(R.string.product_sku, product.sku),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            StatusChip(
+                stringResource(if (product.ready) R.string.ready_ok else R.string.ready_not_ok),
+                if (product.ready) StatusKind.Success else StatusKind.Warning,
+                Modifier.padding(top = Spacing.xs),
+            )
             product.reasons.forEach { reason ->
                 Text(
                     stringResource(

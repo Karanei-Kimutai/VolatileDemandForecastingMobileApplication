@@ -4,13 +4,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.Upload
+
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -19,10 +19,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.volatiledemandforecasting.R
+import com.example.volatiledemandforecasting.core.ui.components.AppCard
 import com.example.volatiledemandforecasting.core.ui.components.PrimaryButton
+import com.example.volatiledemandforecasting.core.ui.theme.appColors
 import com.example.volatiledemandforecasting.core.ui.theme.Spacing
 import com.example.volatiledemandforecasting.data.training.EligibilityCheckDto
 
@@ -83,22 +87,27 @@ fun GettingStartedCard(
     onForecast: () -> Unit,
     onSetUpAi: () -> Unit,
     modifier: Modifier = Modifier,
+    forecastStarting: Boolean = false,
 ) {
     val total = SetupStep.entries.size
-    Card(
-        modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            Text(stringResource(R.string.gs_title), style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(R.string.gs_progress, progress.doneCount, total),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    AppCard(modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.gs_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
+                Text(
+                    stringResource(R.string.gs_progress, progress.doneCount, total),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             LinearProgressIndicator(
                 progress = { progress.doneCount / total.toFloat() },
                 modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.secondary,
             )
             SetupStep.entries.forEach { step ->
                 val isNext = step == progress.next
@@ -111,8 +120,14 @@ fun GettingStartedCard(
                 )
                 if (isNext && canManage) {
                     when (step) {
-                        SetupStep.UploadSales -> PrimaryButton(stringResource(R.string.data_upload), onUpload, Modifier.fillMaxWidth())
-                        SetupStep.FirstForecast -> PrimaryButton(stringResource(R.string.dash_generate), onForecast, Modifier.fillMaxWidth())
+                        SetupStep.UploadSales -> PrimaryButton(stringResource(R.string.data_upload), onUpload, Modifier.fillMaxWidth(), icon = Icons.Outlined.Upload)
+                        SetupStep.FirstForecast -> PrimaryButton(
+                            stringResource(R.string.dash_generate),
+                            onForecast,
+                            Modifier.fillMaxWidth(),
+                            loading = forecastStarting,
+                            icon = Icons.Outlined.Insights,
+                        )
                         SetupStep.AiUnlocked -> if (progress.ai == AiStage.CanTrain || progress.ai == AiStage.DidNotBeat) {
                             PrimaryButton(stringResource(R.string.gs_ai_button), onSetUpAi, Modifier.fillMaxWidth())
                         }
@@ -130,7 +145,7 @@ private fun StepRow(title: String, body: String?, done: Boolean, highlighted: Bo
         Icon(
             if (done) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
             contentDescription = stringResource(if (done) R.string.gs_done else R.string.gs_to_do),
-            tint = if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+            tint = if (done) MaterialTheme.appColors.success else MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(22.dp),
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {

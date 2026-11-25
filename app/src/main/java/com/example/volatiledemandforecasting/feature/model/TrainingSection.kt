@@ -7,7 +7,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.example.volatiledemandforecasting.core.ui.components.AppCard
+import com.example.volatiledemandforecasting.core.ui.theme.Sizes
+import com.example.volatiledemandforecasting.core.ui.theme.appColors
+import com.example.volatiledemandforecasting.core.ui.theme.tabular
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,9 +54,13 @@ import com.example.volatiledemandforecasting.feature.forecasts.MetricsBlock
 @Composable
 fun TrainingSection(viewModel: TrainingViewModel, canTrain: Boolean) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+    AppCard { Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            Text(stringResource(R.string.train_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text(
+                stringResource(R.string.train_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f).semantics { heading() },
+            )
             InfoHint(Term.Training)
         }
         when (val s = state) {
@@ -75,6 +92,7 @@ fun TrainingSection(viewModel: TrainingViewModel, canTrain: Boolean) {
                         viewModel::train,
                         Modifier.fillMaxWidth(),
                         enabled = data.eligibility.eligible,
+                        icon = Icons.Outlined.AutoAwesome,
                     )
                     if (!data.eligibility.eligible) {
                         Text(stringResource(R.string.train_not_eligible_help), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -84,7 +102,7 @@ fun TrainingSection(viewModel: TrainingViewModel, canTrain: Boolean) {
                 }
             }
         }
-    }
+    } }
 }
 
 @Composable
@@ -95,17 +113,31 @@ private fun Eligibility(checks: Map<String, EligibilityCheckDto>, eligible: Bool
             if (eligible) StatusKind.Success else StatusKind.Warning,
         )
         checks.forEach { (key, check) ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(checkLabel(key), style = MaterialTheme.typography.bodyMedium)
+            Column(Modifier.fillMaxWidth().padding(top = Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Icon(
+                        if (check.passed) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+                        contentDescription = stringResource(if (check.passed) R.string.train_check_passed else R.string.train_check_pending),
+                        tint = if (check.passed) MaterialTheme.appColors.success else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(Sizes.iconMedium),
+                    )
+                    Text(checkLabel(key), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     // "60 of 120": both numbers come from the API, so the thresholds are never the app's.
                     Text(
                         stringResource(R.string.train_check_progress, count(check.value), count(check.required)),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.tabular(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                StatusChip(stringResource(if (check.passed) R.string.train_check_passed else R.string.train_check_pending), if (check.passed) StatusKind.Success else StatusKind.Neutral)
+                val value = check.value
+                val required = check.required
+                if (value != null && required != null && required > 0) {
+                    LinearProgressIndicator(
+                        progress = { (value / required).toFloat().coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().padding(start = Sizes.iconMedium + Spacing.sm),
+                        color = if (check.passed) MaterialTheme.appColors.success else MaterialTheme.colorScheme.secondary,
+                    )
+                }
             }
         }
     }

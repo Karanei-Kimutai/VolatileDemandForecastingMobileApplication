@@ -16,6 +16,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
+import com.example.volatiledemandforecasting.core.ui.theme.Sizes
+import com.example.volatiledemandforecasting.core.ui.theme.appColors
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -41,11 +47,16 @@ fun AuthScaffold(
                     .padding(horizontal = Spacing.lg, vertical = Spacing.xl),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                Text(
-                    stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
+                // Small text: the deep accent, not the brand teal, so it passes contrast in light mode.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    // The app mark, as on the launcher and splash (decorative: the name follows).
+                    Image(painterResource(R.drawable.ic_splash), contentDescription = null, modifier = Modifier.size(Sizes.iconBadge))
+                    Text(
+                        stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.appColors.accentText,
+                    )
+                }
                 Text(title, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
                 if (subtitle != null) {
                     Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

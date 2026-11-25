@@ -58,7 +58,22 @@ import com.example.volatiledemandforecasting.data.imports.ImportSummaryDto
 import com.example.volatiledemandforecasting.data.imports.OverlapPolicy
 import com.example.volatiledemandforecasting.feature.data.statusKind
 import com.example.volatiledemandforecasting.feature.data.statusLabel
-import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Icon
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import com.example.volatiledemandforecasting.core.ui.theme.Sizes
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.unit.dp
+import com.example.volatiledemandforecasting.app.navigation.ARG_IMPORT_ID
+import com.example.volatiledemandforecasting.core.ui.components.rememberShowMessage
 import com.example.volatiledemandforecasting.data.sample.SampleSalesFile
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
@@ -84,7 +99,7 @@ class ImportWizardFragment : ShellFragment() {
             val saved = withContext(Dispatchers.IO) {
                 runCatching { resolver.openOutputStream(uri)?.use { it.write(sampleBytes()) } != null }.getOrDefault(false)
             }
-            Toast.makeText(context, if (saved) R.string.w_sample_saved else R.string.w_sample_not_saved, Toast.LENGTH_LONG).show()
+            showMessage?.invoke(context.getString(if (saved) R.string.w_sample_saved else R.string.w_sample_not_saved))
         }
     }
 
@@ -98,8 +113,17 @@ class ImportWizardFragment : ShellFragment() {
         }
     }
 
+    /** Set while the screen is shown, for feedback from activity results. */
+    private var showMessage: ((String) -> Unit)? = null
+
+    // The top bar arrow steps back through the wizard too, exactly like system Back.
+    override fun onTopBarBack() {
+        requireActivity().onBackPressedDispatcher.onBackPressed()
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        arguments?.getString(ARG_IMPORT_ID)?.let { if (savedInstanceState == null) viewModel.resume(it) }
         // System Back steps through the wizard before it leaves it.
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
@@ -141,21 +165,22 @@ class ImportWizardFragment : ShellFragment() {
     override fun ScreenContent(padding: PaddingValues) {
         val state by viewModel.state.collectAsStateWithLifecycle()
         val navController = findNavController()
+        showMessage = rememberShowMessage()
+        val scroll = rememberScrollState()
+        // An error is shown at the top, above the step, so bring it into view when it appears.
+        LaunchedEffect(state.error) { if (state.error != null) scroll.animateScrollTo(0) }
+        LaunchedEffect(state.step) { scroll.scrollTo(0) }
         Column(Modifier.padding(padding)) {
             val step = state.step
-            LinearProgressIndicator(
-                progress = { (step.ordinal + 1) / WizardStep.entries.size.toFloat() },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            step.stage?.let { WizardStepper(it) }
             Column(
-                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(Spacing.lg),
+                Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                Text(
-                    stringResource(R.string.w_step_of, step.ordinal + 1, WizardStep.entries.size),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                state.error?.let { InlineMessage(it.asString(), StatusKind.Error) }
+                if (state.busy && state.import == null && arguments?.getString(ARG_IMPORT_ID) != null) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
                 when (step) {
                     WizardStep.ChooseFile -> ChooseFile(
                         onPick = { pickFile.launch(arrayOf("text/*", "application/vnd.ms-excel", "application/octet-stream")) },
@@ -169,13 +194,60 @@ class ImportWizardFragment : ShellFragment() {
                     WizardStep.Confirm -> ConfirmStep(state, onBack = { viewModel.back() }, onConfirm = viewModel::confirm)
                     WizardStep.Result -> ResultStep(
                         state,
-                        onForecasts = { navController.popBackStack(); navController.navigateToTab(MainTab.Products) },
+                        onForecasts = { navController.popBackStack(); navController.navigateToTab(MainTab.Forecasts) },
                         onReadiness = { navController.navigate(R.id.readinessFragment) },
                         onDone = { navController.popBackStack() },
                     )
                 }
-                state.error?.let { InlineMessage(it.asString(), StatusKind.Error) }
             }
+        }
+    }
+}
+
+/**
+ * Four named stages with the current one marked, instead of "Step 5 of 7": the user sees where
+ * they are and what is left, and optional steps don't make the count jump.
+ */
+@Composable
+private fun WizardStepper(current: WizardStage) {
+    val labels = mapOf(
+        WizardStage.File to stringResource(R.string.w_stage_file),
+        WizardStage.Columns to stringResource(R.string.w_stage_columns),
+        WizardStage.Check to stringResource(R.string.w_stage_check),
+        WizardStage.Confirm to stringResource(R.string.w_stage_confirm),
+    )
+    val stepText = stringResource(R.string.w_step_of, current.ordinal + 1, WizardStage.entries.size) + ": " + labels.getValue(current)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = Spacing.gutter, end = Spacing.gutter, top = Spacing.md)
+            .clearAndSetSemantics { contentDescription = stepText },
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            WizardStage.entries.forEach { stage ->
+                val reached = stage.ordinal <= current.ordinal
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(4.dp)
+                        .background(
+                            if (reached) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outlineVariant,
+                            MaterialTheme.shapes.extraSmall,
+                        ),
+                )
+            }
+        }
+        Row(Modifier.padding(top = Spacing.sm)) {
+            Text(
+                stringResource(R.string.w_step_of, current.ordinal + 1, WizardStage.entries.size),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                " · " + labels.getValue(current),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 }
@@ -319,15 +391,35 @@ private fun ColumnPicker(
             if (needsCheck) StatusChip(stringResource(R.string.w_map_check), StatusKind.Warning)
         }
         androidx.compose.foundation.layout.Box {
-            OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+            // Looks like a dropdown field: the arrow says it opens a list of the file's columns.
+            OutlinedButton(
+                onClick = { open = true },
+                modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget),
+                shape = MaterialTheme.shapes.medium,
+                border = androidx.compose.foundation.BorderStroke(
+                    if (error) 2.dp else Sizes.hairline,
+                    if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+                ),
+                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                    contentColor = if (selected == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                ),
+            ) {
                 Text(selected ?: stringResource(R.string.w_map_not_mapped), Modifier.weight(1f))
+                Icon(androidx.compose.material.icons.Icons.Filled.ArrowDropDown, contentDescription = null)
             }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.w_map_not_mapped)) }, onClick = { open = false; onSelected(null) })
                 columns.forEach { column -> DropdownMenuItem(text = { Text(column) }, onClick = { open = false; onSelected(column) }) }
             }
         }
-        if (error) Text(stringResource(R.string.w_problem_required), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        if (error) {
+            Text(
+                stringResource(R.string.w_problem_required),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
     }
 }
 

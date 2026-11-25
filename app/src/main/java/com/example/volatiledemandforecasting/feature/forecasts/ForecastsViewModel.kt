@@ -11,6 +11,8 @@ import com.example.volatiledemandforecasting.core.ui.components.toUiState
 import com.example.volatiledemandforecasting.data.forecast.BatchDto
 import com.example.volatiledemandforecasting.data.forecast.BatchItemDto
 import com.example.volatiledemandforecasting.data.forecast.BatchRepository
+import com.example.volatiledemandforecasting.data.forecast.ForecastRepository
+import com.example.volatiledemandforecasting.data.forecast.ForecastSummaryDto
 import com.example.volatiledemandforecasting.data.forecast.ShownMethod
 import com.example.volatiledemandforecasting.data.forecast.shownMethodOf
 import com.example.volatiledemandforecasting.data.store.CapabilitiesDto
@@ -49,14 +51,41 @@ data class StoreForecast(
     val hasMore: Boolean get() = items.size < total
 }
 
+/** Single-product forecasts, newest first: the forecast history the Forecasts tab shows next to the store forecast. */
+data class ForecastHistory(
+    val items: List<ForecastSummaryDto>,
+    val total: Int,
+    val page: Int = 1,
+    val loadingMore: Boolean = false,
+) {
+    val hasMore: Boolean get() = items.size < total
+}
+
+/** The two views of the Forecasts tab. */
+enum class ForecastsView { Store, Products }
+
 private const val PAGE_SIZE = 50
+private const val HISTORY_PAGE_SIZE = 20
 private const val POLL_MS = 2500L
 
 class ForecastsViewModel(
     private val batches: BatchRepository,
     private val stores: StoreRepository,
+    private val forecasts: ForecastRepository,
     private val activeStore: ActiveStore,
 ) : ViewModel() {
+
+    private val _view = MutableStateFlow(ForecastsView.Store)
+    val view: StateFlow<ForecastsView> = _view.asStateFlow()
+
+    private val _history = MutableStateFlow<UiState<ForecastHistory>>(UiState.Loading)
+    val history: StateFlow<UiState<ForecastHistory>> = _history.asStateFlow()
+
+    /** A [JobStatus] to filter the history by, or null for all. */
+    private val _historyStatus = MutableStateFlow<String?>(null)
+    val historyStatus: StateFlow<String?> = _historyStatus.asStateFlow()
+
+    private var historyJob: Job? = null
 
     private val _state = MutableStateFlow<UiState<StoreForecast>>(UiState.Loading)
     val state: StateFlow<UiState<StoreForecast>> = _state.asStateFlow()
@@ -81,6 +110,7 @@ class ForecastsViewModel(
             combine(activeStore.selected, activeStore.dataRevision) { s, _ -> s }.collect {
                 store = it
                 load()
+                loadHistory()
             }
         }
     }
@@ -115,6 +145,48 @@ class ForecastsViewModel(
     }
 
     fun setHorizon(days: Int) = _horizon.update { days }
+
+    fun setView(view: ForecastsView) {
+        _view.value = view
+        // Coming back to the list shows forecasts started from a product since it was loaded.
+        if (view == ForecastsView.Products) loadHistory()
+    }
+
+    fun setHistoryStatus(status: String?) {
+        if (status == _historyStatus.value) return
+        _historyStatus.value = status
+        loadHistory()
+    }
+
+    fun loadHistory() {
+        val s = store ?: return
+        historyJob?.cancel()
+        if (_history.value !is UiState.Content) _history.value = UiState.Loading
+        historyJob = viewModelScope.launch {
+            // batch = false: store-wide runs are shown by the store forecast, not repeated here.
+            attempt { forecasts.list(s.storeId, replay = false, status = _historyStatus.value, page = 1, pageSize = HISTORY_PAGE_SIZE, batch = false) }
+                .onSuccess { page ->
+                    _history.value = if (page.items.isEmpty()) UiState.Empty else UiState.Content(ForecastHistory(page.items, page.total))
+                }
+                .onFailure { _history.value = it.toUiState() }
+        }
+    }
+
+    fun loadMoreHistory() {
+        val s = store ?: return
+        val current = (_history.value as? UiState.Content)?.data ?: return
+        if (current.loadingMore || !current.hasMore) return
+        _history.value = UiState.Content(current.copy(loadingMore = true))
+        viewModelScope.launch {
+            val next = current.page + 1
+            attempt { forecasts.list(s.storeId, replay = false, status = _historyStatus.value, page = next, pageSize = HISTORY_PAGE_SIZE, batch = false) }
+                .onSuccess { page -> _history.value = UiState.Content(ForecastHistory(current.items + page.items, page.total, next)) }
+                .onFailure {
+                    _history.value = UiState.Content(current.copy(loadingMore = false))
+                    _messages.send(it.toUiText())
+                }
+        }
+    }
 
     fun setQuery(value: String) {
         _query.value = value

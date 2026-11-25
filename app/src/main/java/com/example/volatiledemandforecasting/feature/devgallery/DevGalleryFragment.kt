@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,7 +23,25 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.volatiledemandforecasting.R
 import com.example.volatiledemandforecasting.app.ShellFragment
+import com.example.volatiledemandforecasting.core.ui.components.AppCard
 import com.example.volatiledemandforecasting.core.ui.components.ConfirmationDialog
+import com.example.volatiledemandforecasting.core.ui.components.IconBadge
+import com.example.volatiledemandforecasting.core.ui.components.InlineMessage
+import com.example.volatiledemandforecasting.core.ui.components.ItemActionsButton
+import com.example.volatiledemandforecasting.core.ui.components.KeyValueRow
+import com.example.volatiledemandforecasting.core.ui.components.NavigationRow
+import com.example.volatiledemandforecasting.core.ui.components.SearchField
+import com.example.volatiledemandforecasting.core.ui.components.SectionHeader
+import com.example.volatiledemandforecasting.core.ui.components.SelectField
+import com.example.volatiledemandforecasting.core.ui.components.SelectOption
+import com.example.volatiledemandforecasting.core.ui.components.TertiaryButton
+import com.example.volatiledemandforecasting.core.ui.components.TonalButton
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.Alignment
 import com.example.volatiledemandforecasting.core.ui.components.ContextMenuBox
 import com.example.volatiledemandforecasting.core.ui.components.DemandClassChip
 import com.example.volatiledemandforecasting.core.ui.components.DemoDataBadge
@@ -71,8 +87,8 @@ class DevGalleryFragment : ShellFragment() {
             Modifier
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xl),
+                .padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.section),
         ) {
             Text(
                 stringResource(R.string.gallery_sample_note),
@@ -83,6 +99,8 @@ class DevGalleryFragment : ShellFragment() {
             ContextMenuSection()
             PopupMenuSection()
             ButtonsSection()
+            FieldsSection()
+            CardsSection()
         }
     }
 }
@@ -98,7 +116,8 @@ private fun Section(@StringRes titleRes: Int, content: @Composable () -> Unit) {
 @Composable
 private fun StatesSection() = Section(R.string.gallery_section_states) {
     var selected by rememberSaveable { mutableStateOf(DemoState.Content) }
-    Row(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    // Scrolls sideways: the page itself already scrolls vertically.
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         DemoState.entries.forEach { option ->
             FilterChip(
                 selected = option == selected,
@@ -115,7 +134,7 @@ private fun StatesSection() = Section(R.string.gallery_section_states) {
         DemoState.Offline -> UiState.Offline
     }
     val cardModifier = Modifier.fillMaxWidth().height(260.dp)
-    Card(cardModifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    AppCard(cardModifier, contentPadding = false) {
         Column {
             if (selected == DemoState.Content) OfflineBanner(lastSynced = null)
             UiStateHost(
@@ -145,22 +164,26 @@ private fun ContextMenuSection() = Section(R.string.gallery_section_context) {
 
     (1..3).forEach { index ->
         val name = stringResource(R.string.gallery_sample_item, index)
+        val entries = listOf(
+            MenuEntry(open, { lastAction = "$open: $name" }),
+            MenuEntry(edit, { lastAction = "$edit: $name" }),
+            MenuEntry(delete, { pendingDelete = index }, destructive = true),
+        )
+        // As on real lists: long-press and the visible ⋮ button offer the same entries.
         ContextMenuBox(
-            entries = listOf(
-                MenuEntry(open, { lastAction = "$open: $name" }),
-                MenuEntry(edit, { lastAction = "$edit: $name" }),
-                MenuEntry(delete, { pendingDelete = index }, destructive = true),
-            ),
+            entries = entries,
             onClick = { lastAction = "$open (tap): $name" },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppCard(contentPadding = false) {
                 Row(
-                    Modifier.fillMaxWidth().padding(Spacing.lg),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    Modifier.fillMaxWidth().padding(start = Spacing.lg, top = Spacing.sm, bottom = Spacing.sm, end = Spacing.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    Text(name, style = MaterialTheme.typography.bodyLarge)
+                    Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                     DemandClassChip(stringResource(R.string.gallery_sample_chip))
+                    ItemActionsButton(entries, name)
                 }
             }
         }
@@ -202,15 +225,18 @@ private fun PopupMenuSection() = Section(R.string.gallery_section_popup) {
 @Composable
 private fun ButtonsSection() = Section(R.string.gallery_section_buttons) {
     var showDialog by rememberSaveable { mutableStateOf(false) }
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         PrimaryButton(stringResource(R.string.gallery_primary), onClick = {})
+        TonalButton(stringResource(R.string.gallery_tonal), onClick = {})
         SecondaryButton(stringResource(R.string.gallery_secondary), onClick = {})
+        TertiaryButton(stringResource(R.string.gallery_tertiary), onClick = {})
         DestructiveButton(stringResource(R.string.gallery_destructive), onClick = { showDialog = true })
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         StatusChip(stringResource(R.string.gallery_status_ready), StatusKind.Success)
         StatusChip(stringResource(R.string.gallery_status_attention), StatusKind.Warning)
         StatusChip(stringResource(R.string.gallery_status_failed), StatusKind.Error)
+        StatusChip(stringResource(R.string.gallery_status_waiting), StatusKind.Neutral)
     }
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) { DemoDataBadge() }
     MetricCard(
@@ -227,5 +253,40 @@ private fun ButtonsSection() = Section(R.string.gallery_section_buttons) {
             onConfirm = { showDialog = false },
             onDismiss = { showDialog = false },
         )
+    }
+}
+
+@Composable
+private fun FieldsSection() = Section(R.string.gallery_section_fields) {
+    var query by rememberSaveable { mutableStateOf("") }
+    var choice by rememberSaveable { mutableStateOf("1") }
+    val options = (1..12).map { SelectOption(it.toString(), stringResource(R.string.gallery_option, it), it.toString()) }
+    SearchField(query, { query = it }, stringResource(R.string.gallery_search))
+    SelectField(
+        choice,
+        options,
+        { choice = it },
+        stringResource(R.string.gallery_select),
+        stringResource(R.string.gallery_search),
+        Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun CardsSection() = Section(R.string.gallery_section_cards) {
+    SectionHeader(stringResource(R.string.gallery_header), action = stringResource(R.string.gallery_header_action), onAction = {})
+    AppCard(contentPadding = false) {
+        NavigationRow(stringResource(R.string.gallery_row_title), {}, supporting = stringResource(R.string.gallery_row_body), icon = Icons.Outlined.Insights)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
+            KeyValueRow(stringResource(R.string.gallery_metric_label), stringResource(R.string.gallery_metric_value))
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        IconBadge(Icons.Outlined.Insights)
+        Text(stringResource(R.string.gallery_badge), style = MaterialTheme.typography.bodyMedium)
+    }
+    StatusKind.entries.forEach { kind ->
+        InlineMessage(stringResource(R.string.gallery_message, kind.name), kind, announce = false)
     }
 }

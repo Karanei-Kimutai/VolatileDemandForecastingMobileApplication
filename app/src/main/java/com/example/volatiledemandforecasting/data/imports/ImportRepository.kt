@@ -196,6 +196,9 @@ interface ImportApi {
     @POST("v1/imports/{importId}/confirm")
     suspend fun confirm(@Path("importId") importId: String, @Body request: ConfirmRequest): ImportDto
 
+    @GET("v1/imports/{importId}")
+    suspend fun import(@Path("importId") importId: String): ImportDto
+
     @DELETE("v1/imports/{importId}")
     suspend fun delete(@Path("importId") importId: String): ImportDto
 
@@ -226,6 +229,8 @@ class ImportRepository(private val api: ImportApi, private val json: Json, priva
         apiCall(json) { api.confirm(importId, ConfirmRequest(overlapPolicy)) }
 
     suspend fun delete(importId: String): ImportDto = apiCall(json) { api.delete(importId) }
+
+    suspend fun import(importId: String): ImportDto = apiCall(json) { api.import(importId) }
 
     suspend fun list(storeId: String, status: String?, page: Int, pageSize: Int): ImportPageDto =
         cache?.load("imports:$storeId:$status:$page:$pageSize", ImportPageDto.serializer()) { apiCall(json) { api.list(storeId, status, page, pageSize) } }

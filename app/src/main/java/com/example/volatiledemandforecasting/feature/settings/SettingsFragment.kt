@@ -1,17 +1,29 @@
 package com.example.volatiledemandforecasting.feature.settings
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.example.volatiledemandforecasting.app.navigation.navigateSingle
+import com.example.volatiledemandforecasting.core.ui.components.AppCard
+import com.example.volatiledemandforecasting.core.ui.components.DestructiveButton
+import com.example.volatiledemandforecasting.core.ui.components.KeyValueRow
+import com.example.volatiledemandforecasting.core.ui.components.NavigationRow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,70 +70,72 @@ class SettingsFragment : ShellFragment() {
         }
 
         Column(
-            Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = Spacing.gutter, vertical = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.cardGap),
         ) {
             Section(R.string.set_profile) {
                 shellState.user?.let {
-                    Value(stringResource(R.string.set_name), it.displayName)
-                    Value(stringResource(R.string.auth_email), it.email)
+                    KeyValueRow(stringResource(R.string.set_name), it.displayName)
+                    KeyValueRow(stringResource(R.string.auth_email), it.email)
                 }
-                LinkRow(stringResource(R.string.set_change_password)) { navController.navigate(R.id.changePasswordFragment) }
+                LinkRow(stringResource(R.string.set_change_password), Icons.Outlined.Lock) { navController.navigateSingle(R.id.changePasswordFragment) }
             }
 
-            Section(R.string.set_workspace) {
+            Section(R.string.set_store) {
                 if (selected == null) {
                     Text(stringResource(R.string.set_no_store), style = MaterialTheme.typography.bodyMedium)
                 } else {
-                    Value(stringResource(R.string.set_workspace), if (selected.isReference) stringResource(R.string.sample_shop_name) else selected.workspaceName)
-                    Value(stringResource(R.string.set_role), roleName(if (selected.isReference) "REFERENCE" else selected.role))
-                    Value(stringResource(R.string.set_store), selected.storeName)
+                    KeyValueRow(stringResource(R.string.set_store), if (selected.isReference) stringResource(R.string.sample_shop_name) else selected.storeName)
+                    if (!selected.isReference && selected.workspaceName != selected.storeName) {
+                        KeyValueRow(stringResource(R.string.set_workspace), selected.workspaceName)
+                    }
+                    KeyValueRow(stringResource(R.string.set_role), roleName(if (selected.isReference) "REFERENCE" else selected.role))
                     storeDetail?.let {
-                        Value(stringResource(R.string.set_timezone), it.timezone)
-                        Value(stringResource(R.string.set_currency), it.currency)
+                        KeyValueRow(stringResource(R.string.set_timezone), it.timezone)
+                        KeyValueRow(stringResource(R.string.set_currency), it.currency)
                     }
                 }
-                LinkRow(stringResource(R.string.set_switch)) { navController.navigate(R.id.workspacePickerFragment) }
+                LinkRow(stringResource(R.string.set_switch), Icons.Outlined.SwapHoriz) { navController.navigateSingle(R.id.workspacePickerFragment) }
             }
 
             Section(R.string.set_appearance) {
                 Text(stringResource(R.string.set_theme), style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    ThemeMode.entries.forEach { mode ->
-                        FilterChip(
-                            selected = theme == mode,
-                            onClick = { scope.launch { prefs.setThemeMode(mode) } },
-                            label = {
-                                Text(
-                                    stringResource(
-                                        when (mode) {
-                                            ThemeMode.System -> R.string.set_theme_system
-                                            ThemeMode.Light -> R.string.set_theme_light
-                                            ThemeMode.Dark -> R.string.set_theme_dark
-                                        }
-                                    )
-                                )
-                            },
+                SegmentedChoice(
+                    options = ThemeMode.entries,
+                    selected = theme,
+                    label = { mode ->
+                        stringResource(
+                            when (mode) {
+                                ThemeMode.System -> R.string.set_theme_system
+                                ThemeMode.Light -> R.string.set_theme_light
+                                ThemeMode.Dark -> R.string.set_theme_dark
+                            }
                         )
-                    }
-                }
-                Text(stringResource(R.string.set_numbers), style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    TableDisplay.entries.forEach { mode ->
-                        FilterChip(
-                            selected = display == mode,
-                            onClick = { scope.launch { prefs.setTableDisplay(mode) } },
-                            label = { Text(stringResource(if (mode == TableDisplay.Decimals) R.string.set_numbers_decimals else R.string.set_numbers_whole)) },
-                        )
-                    }
-                }
+                    },
+                    onSelect = { mode -> scope.launch { prefs.setThemeMode(mode) } },
+                )
+                Text(stringResource(R.string.set_numbers), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = Spacing.sm))
+                SegmentedChoice(
+                    options = TableDisplay.entries,
+                    selected = display,
+                    label = { mode -> stringResource(if (mode == TableDisplay.Decimals) R.string.set_numbers_decimals else R.string.set_numbers_whole) },
+                    onSelect = { mode -> scope.launch { prefs.setTableDisplay(mode) } },
+                )
             }
 
             Section(R.string.set_about) {
-                LinkRow(stringResource(R.string.screen_help)) { navController.navigate(R.id.helpFragment) }
-                Value(stringResource(R.string.set_version), appVersion())
+                LinkRow(stringResource(R.string.screen_help), Icons.AutoMirrored.Outlined.HelpOutline) { navController.navigateSingle(R.id.helpFragment) }
+                KeyValueRow(stringResource(R.string.set_version), appVersion())
                 Text(stringResource(R.string.set_notifications_later), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+
+            // Also in the ⋮ menu; here it is where people look for it.
+            DestructiveButton(
+                stringResource(R.string.menu_sign_out),
+                ::requestSignOut,
+                Modifier.fillMaxWidth().padding(top = Spacing.sm),
+                icon = Icons.AutoMirrored.Outlined.Logout,
+            )
         }
     }
 
@@ -131,10 +145,27 @@ class SettingsFragment : ShellFragment() {
 
 @Composable
 private fun Section(title: Int, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
-        content()
-        HorizontalDivider()
+    AppCard {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(stringResource(title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() }.padding(bottom = Spacing.xs))
+            content()
+        }
+    }
+}
+
+/** A row of connected toggle buttons: one choice from a few, all visible at once. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun <T> SegmentedChoice(options: List<T>, selected: T, label: @Composable (T) -> String, onSelect: (T) -> Unit) {
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = option == selected,
+                onClick = { onSelect(option) },
+                shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                label = { Text(label(option), maxLines = 1) },
+            )
+        }
     }
 }
 
@@ -149,19 +180,6 @@ private fun roleName(role: String): String = stringResource(
 )
 
 @Composable
-private fun Value(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@Composable
-private fun LinkRow(label: String, onClick: () -> Unit) {
-    Text(
-        label,
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Spacing.sm),
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.primary,
-    )
+private fun LinkRow(label: String, icon: ImageVector, onClick: () -> Unit) {
+    NavigationRow(title = label, onClick = onClick, icon = icon, inset = false)
 }

@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -25,7 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,6 +49,8 @@ import com.example.volatiledemandforecasting.app.appContainer
 import com.example.volatiledemandforecasting.core.security.SessionState
 import com.example.volatiledemandforecasting.core.ui.components.PrimaryButton
 import com.example.volatiledemandforecasting.core.ui.components.SecondaryButton
+import com.example.volatiledemandforecasting.core.ui.components.TertiaryButton
+import com.example.volatiledemandforecasting.core.ui.theme.Sizes
 import com.example.volatiledemandforecasting.core.ui.theme.Spacing
 import com.example.volatiledemandforecasting.data.workspace.Selection
 import kotlinx.coroutines.launch
@@ -115,14 +119,15 @@ private fun Tour(signedIn: Boolean, replay: Boolean, onFinish: (next: Int) -> Un
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 // Signed in, Skip ends the tour. Signed out, it jumps to the last page, which holds the account choice.
                 if (!onLast) {
-                    TextButton(onClick = {
-                        if (signedIn) onFinish(R.id.dashboardFragment)
-                        else scope.launch { pagerState.animateScrollToPage(pages.lastIndex) }
-                    }) {
-                        Text(stringResource(R.string.tour_skip))
-                    }
+                    TertiaryButton(
+                        stringResource(R.string.tour_skip),
+                        {
+                            if (signedIn) onFinish(R.id.dashboardFragment)
+                            else scope.launch { pagerState.animateScrollToPage(pages.lastIndex) }
+                        },
+                    )
                 } else {
-                    Spacer(Modifier.height(48.dp))
+                    Spacer(Modifier.height(Sizes.touchTarget))
                 }
             }
             HorizontalPager(pagerState, Modifier.weight(1f).fillMaxWidth()) { index ->
@@ -157,14 +162,20 @@ private fun PageContent(page: TourPage) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // The same rounded-square badge as list rows and cards, at hero size.
         Box(
-            Modifier.size(112.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+            Modifier.size(104.dp).background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.extraLarge),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(page.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(56.dp))
+            Icon(page.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(52.dp))
         }
         Spacer(Modifier.height(Spacing.xxl))
-        Text(stringResource(page.title), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+        Text(
+            stringResource(page.title),
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { heading() },
+        )
         Spacer(Modifier.height(Spacing.md))
         Text(
             stringResource(page.body),
@@ -182,9 +193,12 @@ private fun PageDots(current: Int, count: Int) {
         Modifier.fillMaxWidth().semantics { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.CenterHorizontally),
     ) {
+        // The current page is a longer pill, so position doesn't rely on colour alone.
         repeat(count) { index ->
-            val color = if (index == current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-            Box(Modifier.size(if (index == current) 10.dp else 8.dp).background(color, CircleShape))
+            val selected = index == current
+            val width by animateDpAsState(if (selected) 24.dp else 8.dp, label = "dot")
+            val color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+            Box(Modifier.height(8.dp).width(width).background(color, CircleShape))
         }
     }
 }

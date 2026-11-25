@@ -6,9 +6,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import com.example.volatiledemandforecasting.core.ui.components.AppCard
+import com.example.volatiledemandforecasting.core.ui.theme.tabular
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.example.volatiledemandforecasting.R
 import com.example.volatiledemandforecasting.core.ui.Formatting
 import com.example.volatiledemandforecasting.core.ui.theme.Spacing
@@ -46,12 +44,8 @@ fun MetricsBlock(
         Triple(R.string.res_metric_wape, { m: MetricsDto -> m.wape }, true),
     ).filter { (_, value, _) -> columns.any { c -> c.metrics?.let(value) != null } }
 
-    Card(
-        modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-    ) {
-        Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    AppCard(modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 InfoHint(Term.Accuracy)
@@ -63,7 +57,7 @@ fun MetricsBlock(
                 Text("", Modifier.weight(1.6f))
                 columns.forEach { Text(it.label, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.End, fontWeight = FontWeight.SemiBold) }
             }
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             rows.forEach { (labelRes, value, isShare) ->
                 Row(Modifier.fillMaxWidth()) {
                     Text(stringResource(labelRes), Modifier.weight(1.6f), style = MaterialTheme.typography.bodySmall)
@@ -72,7 +66,7 @@ fun MetricsBlock(
                         Text(
                             if (isShare) Formatting.percent(number) else Formatting.metric(number),
                             Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium.tabular(),
                             textAlign = TextAlign.End,
                         )
                     }
